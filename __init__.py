@@ -14,8 +14,9 @@ nlp = spacy.load("en_core_web_sm")
 # text = "i was play football now"
 text1 = "i am good tomorrow"
 text2 = "they is played football and player go to beach for vacation every next and last week now"
+text3 = "i wants to playing tennis for go to match every next and last week now"
 # text = "i see movie yesterday"
-examples = [nlp(text1.lower()), nlp(text2.lower())]
+examples = [nlp(text1.lower()), nlp(text2.lower()), nlp(text3)]
 
 
 # verb_map = {"see": "saw", "go": "went", "is": "was", "am": "was", "are": "were"}
@@ -25,13 +26,14 @@ class CorrectVerb:
     def __init__(self):
         f = open("verbs-all.json")
         verbs = json.load(f)
-        self.present_to_singular_present_map ={v[0]: v[1] for v in verbs}
+        self.present_to_singular_present_map = {v[0]: v[1] for v in verbs}
+        self.ing_map = {v[0]: v[4] for v in verbs}
         self.present_to_past_map = {v[0]: v[2] for v in verbs}
         self.present_to_past_map["am"] = "was"
         self.present_to_past_map["is"] = "was"
         self.present_to_past_map["are"] = "were"
 
-        # self.past_to_present_map = dict((y, x) for x, y in self.present_to_past_map.items())
+        self.past_to_present_map = dict((y, x) for x, y in self.present_to_past_map.items())
 
         self.all_verb_to_be = ("am", "is", "are", "was", "were")
         self.present_verb_to_be = ("am", "is", "are")
@@ -45,33 +47,34 @@ class CorrectVerb:
     def correct(self, doc):
         verbs = self.get_all_verbs(doc)
 
-        print("the sentence before correction : ", doc.text,end= "\n\n")
+        print("the sentence before correction : ", doc.text, end="\n\n")
 
         corrected_text = self.correct_to_simple_present(doc, verbs)
-        print("the sentence after simple present correction : ", corrected_text,end= "\n\n")
+        print("the sentence after simple present correction : ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_simple_past(doc, verbs)
-        print("the sentence after simple past correction : ", corrected_text,end= "\n\n")
+        print("the sentence after simple past correction : ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_past_cont(nlp(corrected_text), verbs)
-        print("the sentence after past cont && simple past correction : ", corrected_text,end= "\n\n")
+        print("the sentence after past cont && simple past correction : ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_past_cont(doc, verbs)
-        print("the sentence after past cont correction : ", corrected_text,end= "\n\n")
+        print("the sentence after past cont correction : ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_present_cont(doc, verbs)
-        print("the sentence after present cont correction : ", corrected_text,end= "\n\n")
+        print("the sentence after present cont correction : ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_future(doc, verbs)
-        print("the sentence after future correction : ", corrected_text,end= "\n\n")
+        print("the sentence after future correction : ", corrected_text, end="\n\n")
 
         return corrected_text
 
     def get_all_verbs(self, doc):
         verbs = []
         prev = None
+        stemmer = SnowballStemmer(language='english')
         for token in doc:
-            print(token.text, " ", token.morph.to_dict())  # Printing the morphological features in dictionary format.
+            print(token.text, " ", token.morph.to_dict()," ",token.lemma_," ",stemmer.stem(token.text))  # Printing the morphological features in dictionary format.
             if len(token.morph.get("VerbForm")) != 0:
                 verb = {"verb": token.text, "form": token.morph.get("VerbForm"), "tense": token.morph.get("Tense"),
                         "lemma": token.lemma_}
@@ -87,7 +90,17 @@ class CorrectVerb:
         return self.present_to_past_map.get(verb['verb'], verb["lemma"] + "ed")
 
     def get_singular_present_form(self, verb):
-        return self.present_to_singular_present_map.get(verb['lemma'], verb["lemma"]+"s")
+        return self.present_to_singular_present_map.get(verb['lemma'], verb["lemma"] + "s")
+
+    def get_verb_ing(self,verb):
+        return self.ing_map.get(verb['lemma'],verb['lemma']+"ing")
+
+    def check_to_for(self, prev, current):
+        if prev['noun'] == 'to':
+            return current['lemma']
+        elif prev['noun'] == 'for':
+            return self.get_verb_ing(current)
+        return None
 
     def correct_to_simple_present(self, doc, verbs):
         present_keywords = [
@@ -112,7 +125,9 @@ class CorrectVerb:
                             continue
 
                     if 'noun' in prev.keys():
-                        verb_to_be = 'am' if prev['noun'] == 'i' else 'is' if prev['number'][0] == 'Sing' else "are"
+                        verb_to_be = self.check_to_for(prev, current)
+                        if not verb_to_be:
+                            verb_to_be = 'am' if prev['noun'] == 'i' else 'is' if prev['number'][0] == 'Sing' else "are"
                     else:
                         verb_to_be = ""
                     text = self.replace(text, current['verb'], verb_to_be)
@@ -123,13 +138,20 @@ class CorrectVerb:
                     # if prev is verb to be or will
                     inf = current['lemma']
                     if 'verb' in prev.keys() and (prev['verb'] in self.all_verb_to_be or prev['verb'] == 'will'):
-                        prev_prev = verbs[i-1][1]
-                        present = inf if prev_prev['number'][0] == 'Plur' else self.get_singular_present_form(current)
-                        text = text.replace(f"{prev['verb']} {current['verb']}",present)
+                        prev_prev = verbs[i - 1][1]
+                        if 'noun' in prev_prev.keys():
+                            verb = self.check_to_for(prev_prev, current)
+                            if not verb:
+                                verb = inf if prev_prev['number'][0] == 'Plur' or prev_prev['noun'] == "i"\
+                                        else self.get_singular_present_form(current)
+                            text = text.replace(f"{prev['verb']} {current['verb']}", verb)
 
                     else:
-                        present = inf if prev['number'][0] == 'Plur' else self.get_singular_present_form(current)
-                        text = text.replace(f"{prev['noun']} {current['verb']}",f"{prev['noun']} {present}")
+                        verb = self.check_to_for(prev, current)
+                        if not verb:
+                            verb = inf if prev['number'][0] == 'Plur'  or prev['noun'] == "i"\
+                                else self.get_singular_present_form(current)
+                        text = text.replace(f"{prev['noun']} {current['verb']}", f"{prev['noun']} {verb}")
         return text
 
     def correct_to_simple_past(self, doc, verbs):
@@ -152,9 +174,11 @@ class CorrectVerb:
                         if c == current and 'verb' in next.keys():
                             continue
                     if 'noun' in prev.keys():
-                        verb_to_be = 'was' if prev['number'][0] == 'Sing' else "were"
+                        verb_to_be = self.check_to_for(prev, current)
+                        if not verb_to_be:
+                            verb_to_be = 'was' if prev['number'][0] == 'Sing' else "were"
                     else:
-                        verb_to_be =""
+                        verb_to_be = ""
                     text = self.replace(text, current['verb'], verb_to_be)
                 elif current['form'][0] == 'Fin' and current['verb'] == 'will':
                     continue
@@ -169,7 +193,10 @@ class CorrectVerb:
                             text = text.replace(f"{prev['verb']} {current['verb']}",
                                                 self.get_past_form(current))
                     else:
-                        text = self.replace(text, current['verb'], self.get_past_form(current))
+                        verb = self.check_to_for(prev, current)
+                        if not verb:
+                            verb = self.get_past_form(current)
+                        text = self.replace(text, current['verb'], verb)
         return text
 
     def correct_to_past_cont(self, doc, verbs):
@@ -190,22 +217,27 @@ class CorrectVerb:
                     if i < len(verbs) - 1:
                         next, c = verbs[i + 1]
                         if 'noun' in prev.keys():
-                            verb_to_be = 'was' if prev['number'][0] == 'Sing' else "were"
+                            verb_to_be = self.check_to_for(prev, current)
+                            if not verb_to_be:
+                                verb_to_be = 'was' if prev['number'][0] == 'Sing' else "were"
                         else:
                             verb_to_be = ""
                         if c == current and 'verb' in next.keys():
-                            text = text.replace(f"{current['verb']} {next['verb']}", f"{verb_to_be} {next['lemma']}ing")
+                            text = text.replace(f"{current['verb']} {next['verb']} ", f"{verb_to_be} {self.get_verb_ing(next)} ")
                             verbs.pop(i + 1)
 
-                # elif current['form'][0] in ('Fin', 'Inf', 'Part'):
-                #     if 'noun' in prev.keys():
-                #         verb_to_be = 'was' if prev['number'][0] == 'Sing' else "were"
-                #         text = self.replace(text, current['verb'], f"{verb_to_be} {current['lemma']}ing")
+                elif current['form'][0] in ('Fin', 'Inf', 'Part'):
+                    if 'noun' in prev.keys():
+                        verb = self.check_to_for(prev, current)
+                        if verb is not None:
+                            text = text.replace(f"{prev['noun']} {current['verb']} ", f"{prev['noun']} {verb} ")
+                        # verb_to_be = 'was' if prev['number'][0] == 'Sing' else "were"
+                        # text = self.replace(text, current['verb'], f"{verb_to_be} {current['lemma']}ing")
         return text
 
     def correct_to_present_cont(self, doc, verbs):
         present_keywords = ['now', 'at the moment', 'today']
-        verbs= verbs.copy()
+        verbs = verbs.copy()
         text = doc.text
         present_signal = any(present_word in text for present_word in present_keywords)
 
@@ -216,17 +248,25 @@ class CorrectVerb:
                         next, c = verbs[i + 1]
                         # if prev word is noun replace verb to be to suitable one else delete
                         if 'noun' in prev.keys():
-                            verb_to_be = 'am' if prev['noun'] == 'i' else 'is' if prev['number'][0] == 'Sing' else "are"
+                            verb_to_be = self.check_to_for(prev, current)
+                            if not verb_to_be:
+                                verb_to_be = 'am' if prev['noun'] == 'i' else 'is' if prev['number'][
+                                                                                          0] == 'Sing' else "are"
                         else:
                             verb_to_be = ""
                         if c == current and 'verb' in next.keys():
-                            text = text.replace(f"{current['verb']} {next['verb']}", f"{verb_to_be} {next['lemma']}ing")
+                            text = text.replace(f"{current['verb']} {next['verb']} ", f"{verb_to_be} {self.get_verb_ing(next)} ")
                             verbs.pop(i + 1)
 
                 elif current['form'][0] in ('Fin', 'Inf', 'Part'):
                     if 'noun' in prev.keys():
-                        verb_to_be = 'am' if prev['noun'] == 'i' else 'is' if prev['number'][0] == 'Sing' else "are"
-                        text = self.replace(text, current['verb'], f"{verb_to_be} {current['lemma']}ing")
+                        verb_to_be = self.check_to_for(prev, current)
+                        if not verb_to_be:
+                            verb_to_be = 'am' if prev['noun'] == 'i' else 'is' if prev['number'][0] == 'Sing' else "are"
+                            text = self.replace(text, current['verb'], f"{verb_to_be} {self.get_verb_ing(current)}")
+                        else:
+                            text = text.replace(f"{prev['noun']} {current['verb']} ", f"{prev['noun']} {verb_to_be} ")
+
 
         return text
 
@@ -244,7 +284,12 @@ class CorrectVerb:
                         next, c = verbs[i + 1]
                         if c == current and 'verb' in next.keys():
                             continue
-                    text = self.replace(text, current['verb'], f"will {current['lemma']}")
+                    verb = None
+                    if 'noun' in prev:
+                        verb = self.check_to_for(prev, current)
+                    if not verb:
+                        verb = f"will {current['lemma']}"
+                    text = self.replace(text, current['verb'], verb)
                 elif current['form'][0] == 'Fin' and current['verb'] == 'will':
                     continue
                 # Fin -> with s , Inf -> without s, Part  -> ing | ed
@@ -254,8 +299,11 @@ class CorrectVerb:
                         text = text.replace(f"{prev['verb']} {current['verb']}",
                                             f"will {current['lemma']}")
                     else:
+                        verb = self.check_to_for(prev, current)
+                        if not verb:
+                            verb = f"will {current['lemma']}"
                         prev_word = prev['noun'] if 'noun' in prev.keys() else prev['verb']
-                        text = text.replace(f"{prev_word} {current['verb']}", f"{prev_word} will {current['lemma']}")
+                        text = text.replace(f"{prev_word} {current['verb']}", f"{prev_word} {verb}")
             return text
 
 
