@@ -13,8 +13,11 @@ nlp = spacy.load("en_core_web_sm")
 # text = "i am playing football yesterday"
 # text = "i was play football now"
 text1 = "i am good tomorrow"
-text2 = "they is played football and player go to beach for vacation every next and last week now"
-text3 = "i wants to playing tennis for go to match every next and last week now"
+text1 = "i can't play football and he can play tennis"
+text1 = "he go to beach for swimming every next and last week now"
+text2 = "The players is played football and Sami watch them happily every next and last week now"
+# text3 = "i wants to playing tennis for go to match every next and last week now"
+text3 = "i wants to playing tennis for participating in competition every next and last week now"
 # text = "i see movie yesterday"
 examples = [nlp(text1.lower()), nlp(text2.lower()), nlp(text3)]
 
@@ -50,22 +53,22 @@ class CorrectVerb:
         print("the sentence before correction : ", doc.text, end="\n\n")
 
         corrected_text = self.correct_to_simple_present(doc, verbs)
-        print("the sentence after simple present correction : ", corrected_text, end="\n\n")
+        print("the sentence after simple present correction: ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_simple_past(doc, verbs)
-        print("the sentence after simple past correction : ", corrected_text, end="\n\n")
+        # print("the sentence after simple past correction: ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_past_cont(nlp(corrected_text), verbs)
-        print("the sentence after past cont && simple past correction : ", corrected_text, end="\n\n")
+        print("the sentence after past continuous && simple past correction: ", corrected_text, end="\n\n")
 
-        corrected_text = self.correct_to_past_cont(doc, verbs)
-        print("the sentence after past cont correction : ", corrected_text, end="\n\n")
+        # corrected_text = self.correct_to_past_cont(doc, verbs)
+        # print("the sentence after past continuous correction: ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_present_cont(doc, verbs)
-        print("the sentence after present cont correction : ", corrected_text, end="\n\n")
+        print("the sentence after present continuous correction: ", corrected_text, end="\n\n")
 
         corrected_text = self.correct_to_future(doc, verbs)
-        print("the sentence after future correction : ", corrected_text, end="\n\n")
+        print("the sentence after future correction: ", corrected_text, end="\n\n")
 
         return corrected_text
 
