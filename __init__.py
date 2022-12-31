@@ -14,11 +14,11 @@ nlp = spacy.load("en_core_web_sm")
 # text = "i was play football now"
 text1 = "i am good tomorrow"
 text1 = "i can't play football and he can play tennis"
-text1 = "he go to beach for swimming every next and last week now"
-text2 = "The players is played football and Sami watch them happily every next and last week now"
+text1 = "he go to beach for swimming every next and last week now since "
+text2 = "The players is played football and Sami watch them happily every next and last week now for 50"
 # text3 = "i wants to playing tennis for go to match every next and last week now"
-text3 = "i wants to playing tennis for participating in competition every next and last week now"
-text3 = "i has seen movie every next and last week now"
+text3 = "i wants to playing tennis for participating in competition every next and last week now since"
+# text3 = "i has seen movie every next and last week now"
 examples = [nlp(text1.lower()), nlp(text2.lower()), nlp(text3)]
 
 
@@ -31,6 +31,7 @@ class CorrectVerb:
         verbs = json.load(f)
         self.present_to_singular_present_map = {v[0]: v[1] for v in verbs}
         self.ing_map = {v[0]: v[4] for v in verbs}
+        self.past_participle_map = {v[0]: v[3] for v in verbs}
         self.present_to_past_map = {v[0]: v[2] for v in verbs}
         self.present_to_past_map["am"] = "was"
         self.present_to_past_map["is"] = "was"
@@ -72,6 +73,9 @@ class CorrectVerb:
         corrected_text = self.correct_to_future(doc, verbs)
         print("the sentence after future correction: ", corrected_text, end="\n\n")
 
+        corrected_text = self.correct_to_present_perfect(doc, verbs)
+        print("the sentence after present perfect correction: ", corrected_text, end="\n\n")
+
         return corrected_text
 
     def get_all_verbs(self, doc):
@@ -100,6 +104,9 @@ class CorrectVerb:
 
     def get_verb_ing(self, verb):
         return self.ing_map.get(verb['lemma'], verb['lemma'] + "ing")
+
+    def get_past_participle(self, verb):
+        return self.past_participle_map.get(verb['lemma'], verb['lemma'] + "ed")
 
     def check_to_for(self, prev, current):
         if prev['noun'] == 'to':
@@ -366,6 +373,45 @@ class CorrectVerb:
                         prev_word = prev['noun'] if 'noun' in prev.keys() else prev['verb']
                         text = text.replace(f"{prev_word} {current['verb']}", f"{prev_word} {verb}")
             return text
+
+    def correct_to_present_perfect(self, doc, verbs):
+        present_perfect_keywords = ['since', 'until', 'yet', 'already', 'just', 'recently', 'so far', 'ever']
+        verbs = verbs.copy()
+        text = doc.text
+        present_signal = any(present_word in text for present_word in present_perfect_keywords) or re.search(r"for \d+",
+                                                                                                             text)
+        if present_signal:
+
+            for i, (current, prev) in enumerate(verbs):
+                if current['form'][0] == 'Fin' and \
+                        (current['verb'] in self.all_verb_to_be or current['verb'] == 'will' or current['verb'] in self.perfect_aux):
+                    if i < len(verbs) - 1:
+                        next, c = verbs[i + 1]
+                        # if prev word is noun replace verb to suitable aux else delete
+                        if 'noun' in prev.keys():
+                            verb = self.check_to_for(prev, current)
+                            if not verb:
+                                verb = 'have' if prev['noun'] == 'i' \
+                                                 or prev['number'][0] == 'Plur' else "has"
+                        else:
+                            verb = ""
+                        if c == current and 'verb' in next.keys():
+                            text = text.replace(f"{current['verb']} {next['verb']} ",
+                                                f"{verb} {self.get_past_participle(next)} ")
+                            verbs.pop(i + 1)
+
+                elif current['form'][0] in ('Fin', 'Inf', 'Part'):
+                    if 'noun' in prev.keys():
+                        verb = self.check_to_for(prev, current)
+                        if not verb:
+                            verb = 'have' if prev['noun'] == 'i' \
+                                             or prev['number'][0] == 'Plur' else "has"
+                            text = self.replace(text, current['verb'], f"{verb} {self.get_past_participle(current)}")
+                        else:
+
+                            text = text.replace(f"{prev['noun']} {current['verb']} ", f"{prev['noun']} {verb} ")
+
+        return text
 
 
 c = CorrectVerb()
