@@ -14,7 +14,7 @@ nlp = spacy.load("en_core_web_sm")
 # text = "i was play football now"
 text1 = "i am good tomorrow"
 text1 = "i can't play football and he can play tennis"
-text1 = "he go to beach for swimming every next and last week now since "
+text1 = "he go to beach for swimming"
 text2 = "The players is played football and Sami watch them happily every next and last week now for 50"
 # text3 = "i wants to playing tennis for go to match every next and last week now"
 text3 = "i wants to playing tennis for participating in competition every next and last week now since"
@@ -46,6 +46,12 @@ class CorrectVerb:
         self.plural_pronouns = ("we", "they", "you")
 
         self.perfect_aux = ("has", "have", "had")
+
+        self.simple_present_keywords = ['every', 'each', 'usually', 'always', 'often', 'sometimes', 'never', ]
+        self.past_keywords = ['yesterday', 'before', 'last', 'this morning', 'ago']
+        self.present_cont_keywords = ['now', 'at the moment', 'today']
+        self.future_keywords = ['tomorrow', 'next']
+        self.present_perfect_keywords = ['since', 'until', 'yet', 'already', 'just', 'recently', 'so far', 'ever']
 
     def replace(self, text, r1, r2):
         return " ".join(list(map(lambda t: re.sub(fr"^{r1}$", r2, t), text.split())))
@@ -126,19 +132,18 @@ class CorrectVerb:
         return prev['verb'] in self.all_verb_to_be or prev['verb'] == 'will' or prev['verb'] in self.perfect_aux
 
     def correct_to_simple_present(self, doc, verbs):
-        present_keywords = [
-            'every',
-            'each',
-            'usually',
-            'always',
-            'often',
-            'sometimes',
-            'never',
-        ]
         verbs = verbs.copy()
         text = doc.text
-        present_signal = any(present_keyword in text for present_keyword in present_keywords)
-        if present_signal:
+        for keywords in [self.past_keywords, self.present_cont_keywords, self.future_keywords,
+                         self.present_perfect_keywords]:
+            signal = any(keyword in text for keyword in keywords)
+            if signal:
+                break
+        if not signal:
+            signal = re.search(r"for \d+", text)
+
+        present_signal = any(present_keyword in text for present_keyword in self.simple_present_keywords)
+        if present_signal or not signal:
             for i, (current, prev) in enumerate(verbs):
                 # if current is verb to be and the next word is verb continue else replace
                 if current['form'][0] == 'Fin' and current['verb'] in self.all_verb_to_be:
@@ -192,16 +197,9 @@ class CorrectVerb:
         return text
 
     def correct_to_simple_past(self, doc, verbs):
-        past_keywords = [
-            'yesterday',
-            'before',
-            'last',
-            'this morning',
-            'ago'
-        ]
         verbs = verbs.copy()
         text = doc.text
-        past_signal = any(past_word in text for past_word in past_keywords)
+        past_signal = any(past_word in text for past_word in self.past_keywords)
         if past_signal:
             for i, (current, prev) in enumerate(verbs):
                 # if current is verb to be and the next word is verb continue else replace
@@ -254,16 +252,9 @@ class CorrectVerb:
 
     # here we only convert present cont to past, the other forms are converted to past simple
     def correct_to_past_cont(self, doc, verbs):
-        past_keywords = [
-            'yesterday',
-            'before',  # the day before
-            'last',
-            'this morning',
-            'ago'
-        ]
         verbs = verbs.copy()
         text = doc.text
-        past_signal = any(past_word in text for past_word in past_keywords)
+        past_signal = any(past_word in text for past_word in self.past_keywords)
         if past_signal:
             for i, (current, prev) in enumerate(verbs):
                 if current['form'][0] == 'Fin' and current['verb'] in self.all_verb_to_be:
@@ -302,10 +293,9 @@ class CorrectVerb:
         return text
 
     def correct_to_present_cont(self, doc, verbs):
-        present_keywords = ['now', 'at the moment', 'today']
         verbs = verbs.copy()
         text = doc.text
-        present_signal = any(present_word in text for present_word in present_keywords)
+        present_signal = any(present_word in text for present_word in self.present_cont_keywords)
 
         if present_signal:
             for i, (current, prev) in enumerate(verbs):
@@ -338,10 +328,9 @@ class CorrectVerb:
         return text
 
     def correct_to_future(self, doc, verbs):
-        future_keywords = ['tomorrow', 'next']
         verbs = verbs.copy()
         text = doc.text
-        future_signal = any(future_keyword in text for future_keyword in future_keywords)
+        future_signal = any(future_keyword in text for future_keyword in self.future_keywords)
 
         if future_signal:
             for i, (current, prev) in enumerate(verbs):
@@ -375,16 +364,15 @@ class CorrectVerb:
             return text
 
     def correct_to_present_perfect(self, doc, verbs):
-        present_perfect_keywords = ['since', 'until', 'yet', 'already', 'just', 'recently', 'so far', 'ever']
         verbs = verbs.copy()
         text = doc.text
-        present_signal = any(present_word in text for present_word in present_perfect_keywords) or re.search(r"for \d+",
-                                                                                                             text)
+        present_signal = any(present_word in text for present_word in self.present_perfect_keywords) \
+                         or re.search(r"for \d+", text)
         if present_signal:
-
             for i, (current, prev) in enumerate(verbs):
                 if current['form'][0] == 'Fin' and \
-                        (current['verb'] in self.all_verb_to_be or current['verb'] == 'will' or current['verb'] in self.perfect_aux):
+                        (current['verb'] in self.all_verb_to_be or current['verb'] == 'will' or current[
+                            'verb'] in self.perfect_aux):
                     if i < len(verbs) - 1:
                         next, c = verbs[i + 1]
                         # if prev word is noun replace verb to suitable aux else delete
