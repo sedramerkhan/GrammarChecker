@@ -6,7 +6,8 @@ It's English Grammar Checker that corrects subject verb agreement mistakes and t
 4. Past Continuous
 5. Future (will)
 6. Present Perfect
-In adition to the verbs after to (infinitive) and for (verb + ing).
+
+In addition to the verbs after to (infinitive) and for (verb + ing).
 
 ## Installation
 
