@@ -1,5 +1,5 @@
 # English Grammar Checker
-It's English Grammar Checker that corrects subject verb agreement mistakes and tense form depending on the keyword in the sentence like (yesterday, today...) where we correct this tenses: 
+It's English Grammar Checker that corrects subject verb agreement mistakes with verb tense and form depending on the keyword in the sentence like (yesterday, today...) where we correct this tenses: 
 1. Simple Present
 2. Simple Past
 3. Present Continuous
